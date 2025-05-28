@@ -29,13 +29,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check if user is logged in on app start
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      const parsedUser = JSON.parse(savedUser);
+      // Convert createdAt string back to Date object
+      parsedUser.createdAt = new Date(parsedUser.createdAt);
+      setUser(parsedUser);
     }
     
     // Load users (without passwords for security)
     const savedUsers = localStorage.getItem('users');
     if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
+      const parsedUsers = JSON.parse(savedUsers);
+      // Convert createdAt strings back to Date objects
+      const usersWithDates = parsedUsers.map((user: any) => ({
+        ...user,
+        createdAt: new Date(user.createdAt)
+      }));
+      setUsers(usersWithDates);
     } else {
       const usersWithoutPasswords = mockUsers.map(({ password, ...user }) => user);
       setUsers(usersWithoutPasswords);
@@ -52,6 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (foundUser) {
       const { password: _, ...userWithoutPassword } = foundUser;
+      // Ensure createdAt is a Date object
+      userWithoutPassword.createdAt = new Date(userWithoutPassword.createdAt);
       setUser(userWithoutPassword);
       localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
       return true;
