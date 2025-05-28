@@ -8,6 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
 interface NewCaseFormProps {
@@ -87,17 +91,33 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
   const [dueDate, setDueDate] = useState('');
   const [caseRemarks, setCaseRemarks] = useState('');
   const [status, setStatus] = useState<Case['status']>('Pending');
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+
+  // Filter leads based on search value
+  const filteredLeads = mockLeads.filter(lead => 
+    lead.ckt.toLowerCase().includes(searchValue.toLowerCase()) ||
+    lead.cust_name.toLowerCase().includes(searchValue.toLowerCase())
+  );
 
   useEffect(() => {
     if (selectedLeadCkt) {
       const lead = mockLeads.find(l => l.ckt === selectedLeadCkt);
       setSelectedLead(lead || null);
       setIpAddress(lead?.usable_ip_address || '');
+      console.log('Selected lead:', lead);
     } else {
       setSelectedLead(null);
       setIpAddress('');
     }
   }, [selectedLeadCkt]);
+
+  const handleLeadSelect = (leadCkt: string) => {
+    console.log('Selecting lead:', leadCkt);
+    setSelectedLeadCkt(leadCkt);
+    setOpen(false);
+    setSearchValue('');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,21 +169,56 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Lead Selection */}
+            {/* Lead Selection with Search */}
             <div className="space-y-2">
               <Label htmlFor="leadNumber">Lead Number *</Label>
-              <Select value={selectedLeadCkt} onValueChange={setSelectedLeadCkt} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a lead number" />
-                </SelectTrigger>
-                <SelectContent>
-                  {mockLeads.map((lead) => (
-                    <SelectItem key={lead.ckt} value={lead.ckt}>
-                      {lead.ckt} - {lead.cust_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between"
+                  >
+                    {selectedLeadCkt
+                      ? `${selectedLeadCkt} - ${selectedLead?.cust_name}`
+                      : "Search and select a lead number..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search lead number or company name..." 
+                      value={searchValue}
+                      onValueChange={setSearchValue}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No lead found.</CommandEmpty>
+                      <CommandGroup>
+                        {filteredLeads.map((lead) => (
+                          <CommandItem
+                            key={lead.ckt}
+                            value={lead.ckt}
+                            onSelect={() => handleLeadSelect(lead.ckt)}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedLeadCkt === lead.ckt ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{lead.ckt}</span>
+                              <span className="text-sm text-gray-500">{lead.cust_name}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* IP Address */}
