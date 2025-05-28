@@ -88,9 +88,12 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
   const [ipAddress, setIpAddress] = useState('');
   const [connectivity, setConnectivity] = useState<'Stable' | 'Unstable' | 'Unknown'>('Unknown');
   const [assignedDate, setAssignedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [assignedTime, setAssignedTime] = useState(new Date().toTimeString().slice(0, 5));
   const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('23:59');
   const [caseRemarks, setCaseRemarks] = useState('');
   const [status, setStatus] = useState<Case['status']>('Pending');
+  const [timeSpent, setTimeSpent] = useState<number>(0);
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
@@ -131,16 +134,23 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
       return;
     }
 
+    const assignedDateTime = new Date(`${assignedDate}T${assignedTime}`);
+    const dueDateTime = new Date(`${dueDate}T${dueTime}`);
+    const now = new Date();
+
     const newCase: Case = {
       id: Date.now().toString(),
       leadCkt: selectedLeadCkt,
       ipAddress,
       connectivity,
-      assignedDate: new Date(assignedDate),
-      dueDate: new Date(dueDate),
+      assignedDate: assignedDateTime,
+      dueDate: dueDateTime,
       caseRemarks,
       status,
-      lead: selectedLead
+      lead: selectedLead,
+      createdAt: now,
+      timeSpent,
+      lastUpdated: now
     };
 
     onCaseAdded(newCase);
@@ -151,9 +161,12 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
     setIpAddress('');
     setConnectivity('Unknown');
     setAssignedDate(new Date().toISOString().split('T')[0]);
+    setAssignedTime(new Date().toTimeString().slice(0, 5));
     setDueDate('');
+    setDueTime('23:59');
     setCaseRemarks('');
     setStatus('Pending');
+    setTimeSpent(0);
 
     toast({
       title: "Case Created",
@@ -299,6 +312,17 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
               />
             </div>
 
+            {/* Assigned Time */}
+            <div className="space-y-2">
+              <Label htmlFor="assignedTime">Assigned Time</Label>
+              <Input
+                id="assignedTime"
+                type="time"
+                value={assignedTime}
+                onChange={(e) => setAssignedTime(e.target.value)}
+              />
+            </div>
+
             {/* Due Date */}
             <div className="space-y-2">
               <Label htmlFor="dueDate">Due Date *</Label>
@@ -308,6 +332,30 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 required
+              />
+            </div>
+
+            {/* Due Time */}
+            <div className="space-y-2">
+              <Label htmlFor="dueTime">Due Time</Label>
+              <Input
+                id="dueTime"
+                type="time"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+              />
+            </div>
+
+            {/* Time Spent */}
+            <div className="space-y-2">
+              <Label htmlFor="timeSpent">Time Spent (minutes)</Label>
+              <Input
+                id="timeSpent"
+                type="number"
+                min="0"
+                value={timeSpent}
+                onChange={(e) => setTimeSpent(Number(e.target.value))}
+                placeholder="Enter time spent in minutes"
               />
             </div>
 

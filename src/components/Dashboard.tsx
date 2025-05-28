@@ -23,6 +23,10 @@ export function Dashboard() {
     setCases(prev => prev.map(c => c.id === updatedCase.id ? updatedCase : c));
   };
 
+  const handleCaseDeleted = (caseId: string) => {
+    setCases(prev => prev.filter(c => c.id !== caseId));
+  };
+
   const pendingCount = cases.filter(c => c.status === 'Pending').length;
   const overdueCount = cases.filter(c => c.status === 'Overdue').length;
 
@@ -81,7 +85,11 @@ export function Dashboard() {
           </TabsList>
 
           <TabsContent value="cases" className="animate-fade-in">
-            <CaseList cases={cases} onCaseUpdated={handleCaseUpdated} />
+            <CaseList 
+              cases={cases} 
+              onCaseUpdated={handleCaseUpdated} 
+              onCaseDeleted={handleCaseDeleted}
+            />
           </TabsContent>
 
           <TabsContent value="new-case" className="animate-fade-in">

@@ -6,14 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
+import { Trash2, Clock } from 'lucide-react';
 
 interface CaseListProps {
   cases: Case[];
   onCaseUpdated: (updatedCase: Case) => void;
+  onCaseDeleted: (caseId: string) => void;
 }
 
-export function CaseList({ cases, onCaseUpdated }: CaseListProps) {
+export function CaseList({ cases, onCaseUpdated, onCaseDeleted }: CaseListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -25,11 +28,19 @@ export function CaseList({ cases, onCaseUpdated }: CaseListProps) {
   });
 
   const handleStatusUpdate = (caseItem: Case, newStatus: Case['status']) => {
-    const updatedCase = { ...caseItem, status: newStatus };
+    const updatedCase = { ...caseItem, status: newStatus, lastUpdated: new Date() };
     onCaseUpdated(updatedCase);
     toast({
       title: "Status Updated",
       description: `Case ${caseItem.leadCkt} status changed to ${newStatus}`,
+    });
+  };
+
+  const handleDeleteCase = (caseId: string, leadCkt: string) => {
+    onCaseDeleted(caseId);
+    toast({
+      title: "Case Deleted",
+      description: `Case ${leadCkt} has been deleted successfully`,
     });
   };
 
@@ -49,6 +60,23 @@ export function CaseList({ cases, onCaseUpdated }: CaseListProps) {
       case 'Unstable': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const formatDateTime = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const formatTimeSpent = (minutes: number) => {
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
   };
 
   return (
@@ -96,9 +124,35 @@ export function CaseList({ cases, onCaseUpdated }: CaseListProps) {
                   <CardTitle className="text-lg">{caseItem.leadCkt}</CardTitle>
                   <p className="text-sm text-gray-600">{caseItem.lead?.cust_name}</p>
                 </div>
-                <Badge className={getStatusColor(caseItem.status)}>
-                  {caseItem.status}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className={getStatusColor(caseItem.status)}>
+                    {caseItem.status}
+                  </Badge>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Case</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete case {caseItem.leadCkt}? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteCase(caseItem.id, caseItem.leadCkt)}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -117,8 +171,23 @@ export function CaseList({ cases, onCaseUpdated }: CaseListProps) {
               
               <div className="text-sm">
                 <p className="text-gray-500">Due Date:</p>
-                <p className="font-medium">{caseItem.dueDate.toLocaleDateString()}</p>
+                <p className="font-medium">{formatDateTime(caseItem.dueDate)}</p>
               </div>
+
+              <div className="text-sm">
+                <p className="text-gray-500">Created:</p>
+                <p className="font-medium">{formatDateTime(caseItem.createdAt)}</p>
+              </div>
+
+              {caseItem.timeSpent !== undefined && caseItem.timeSpent > 0 && (
+                <div className="text-sm">
+                  <div className="flex items-center gap-1 text-gray-500">
+                    <Clock className="h-3 w-3" />
+                    <span>Time Spent:</span>
+                  </div>
+                  <p className="font-medium">{formatTimeSpent(caseItem.timeSpent)}</p>
+                </div>
+              )}
 
               {caseItem.caseRemarks && (
                 <div className="text-sm">

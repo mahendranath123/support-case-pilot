@@ -40,6 +40,9 @@ export interface Case {
   caseRemarks: string;
   status: "Pending" | "Overdue" | "Completed" | "OnHold";
   lead?: Lead;
+  createdAt: Date;
+  timeSpent?: number; // Time spent in minutes
+  lastUpdated: Date;
 }
 
 export interface User {
