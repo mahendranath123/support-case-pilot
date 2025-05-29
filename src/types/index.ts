@@ -5,6 +5,7 @@ export interface Lead {
   cust_name: string; // Company name
   address: string;
   email_id: string;
+  empty: string;
   contact_name: string;
   comm_date: string;
   pop_name: string;

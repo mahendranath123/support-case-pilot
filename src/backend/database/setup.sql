@@ -3,36 +3,25 @@
 CREATE DATABASE IF NOT EXISTS tracker;
 USE tracker;
 
--- Create the cases table
-CREATE TABLE IF NOT EXISTS cases (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  leadCkt VARCHAR(255) NOT NULL,
-  ipAddress VARCHAR(45),
-  connectivity ENUM('Stable', 'Unstable', 'Unknown') DEFAULT 'Unknown',
-  assignedDate DATETIME NOT NULL,
-  dueDate DATETIME NOT NULL,
-  caseRemarks TEXT,
-  status ENUM('Pending', 'Overdue', 'Completed', 'OnHold') DEFAULT 'Pending',
-  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-  lastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  timeSpent INT DEFAULT 0
-);
+-- Drop existing LeadDemoData table if it exists to recreate with proper schema
+DROP TABLE IF EXISTS LeadDemoData;
 
--- Create the LeadDemoData table (if you don't have it already)
-CREATE TABLE IF NOT EXISTS LeadDemoData (
+-- Create the LeadDemoData table with the complete schema
+CREATE TABLE LeadDemoData (
   sr_no VARCHAR(50) PRIMARY KEY,
   ckt VARCHAR(255) NOT NULL,
-  cust_name VARCHAR(255),
+  cust_name VARCHAR(500),
   address TEXT,
   email_id VARCHAR(255),
+  empty VARCHAR(50),
   contact_name VARCHAR(255),
-  comm_date DATE,
+  comm_date VARCHAR(50),
   pop_name VARCHAR(255),
   nas_ip_1 VARCHAR(45),
   switch_ip_1 VARCHAR(45),
   port_no_1 VARCHAR(50),
   vlan_id_1 VARCHAR(50),
-  primary_pop VARCHAR(255),
+  primary_pop VARCHAR(500),
   pop_name_2 VARCHAR(255),
   nas_ip_2 VARCHAR(45),
   switch_ip_2 VARCHAR(45),
@@ -47,11 +36,130 @@ CREATE TABLE IF NOT EXISTS LeadDemoData (
   testing_fe VARCHAR(255),
   device VARCHAR(255),
   remarks TEXT,
-  mrtg VARCHAR(255)
+  mrtg TEXT,
+  INDEX idx_ckt (ckt),
+  INDEX idx_cust_name (cust_name),
+  INDEX idx_contact_name (contact_name),
+  INDEX idx_sales_person (sales_person)
 );
 
--- Insert some sample lead data for testing
-INSERT IGNORE INTO LeadDemoData (sr_no, ckt, cust_name, address, email_id, contact_name, usable_ip_address, bandwidth, device) VALUES
-('1', 'CKT001', 'Sample Company 1', '123 Main St, City', 'contact@company1.com', 'John Doe', '192.168.1.10', '100 Mbps', 'Router-1'),
-('2', 'CKT002', 'Sample Company 2', '456 Oak Ave, Town', 'info@company2.com', 'Jane Smith', '192.168.1.20', '50 Mbps', 'Switch-1'),
-('3', 'CKT003', 'Sample Company 3', '789 Pine Rd, Village', 'admin@company3.com', 'Bob Johnson', '192.168.1.30', '200 Mbps', 'Router-2');
+-- Create the cases table
+CREATE TABLE IF NOT EXISTS cases (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  leadCkt VARCHAR(255) NOT NULL,
+  ipAddress VARCHAR(45),
+  connectivity ENUM('Stable', 'Unstable', 'Unknown') DEFAULT 'Unknown',
+  assignedDate DATETIME NOT NULL,
+  dueDate DATETIME NOT NULL,
+  caseRemarks TEXT,
+  status ENUM('Pending', 'Overdue', 'Completed', 'OnHold') DEFAULT 'Pending',
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  lastUpdated DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  timeSpent INT DEFAULT 0,
+  INDEX idx_leadCkt (leadCkt),
+  INDEX idx_status (status),
+  INDEX idx_assignedDate (assignedDate),
+  INDEX idx_dueDate (dueDate)
+);
+
+-- Insert the sample lead data with the new schema
+INSERT INTO LeadDemoData (
+  sr_no, ckt, cust_name, address, email_id, empty, contact_name, comm_date, 
+  pop_name, nas_ip_1, switch_ip_1, port_no_1, vlan_id_1, primary_pop, 
+  pop_name_2, nas_ip_2, switch_ip_2, port_no_2, vlan_id_2, backup, 
+  usable_ip_address, subnet_mask, gateway, bandwidth, sales_person, 
+  testing_fe, device, remarks, mrtg
+) VALUES (
+  'Active', 
+  '1342', 
+  'Vman_Aero_Services_CAV_Aero_Services_LLP_1342', 
+  '402, Wellington Business Park 2, near Marol Naka Metro Station, Marol, Andheri East, Mumbai-400059', 
+  'avadooth.rahate@cav.aero', 
+  '', 
+  'Avadhoot Rahate', 
+  '25/2/2019', 
+  'Jeebr_Office_PPTP_MKT', 
+  '10.10.41.10', 
+  '', 
+  '', 
+  '', 
+  'Jeebr_Office_PPTP_MKT 10.10.41.10 >> 103.123.225.90', 
+  '', 
+  '', 
+  '', 
+  '', 
+  '', 
+  '', 
+  '103.123.225.90', 
+  '255.255.255.252', 
+  '103.123.225.89', 
+  '5 Mbps', 
+  'Dharmendra', 
+  '', 
+  '', 
+  'CAV Aero Services LLP name has been changed to Vman Aero Services (Data update - 12/02/2021)', 
+  'http://103.123.225.89:4040/graphs/queue/Vman%5FAero%5FServices%5FCKT%5F1342/'
+),
+-- Add a few more sample records for testing
+(
+  'Active', 
+  '1001', 
+  'Sample_Company_One_Ltd', 
+  '123 Business Street, Commercial District, Mumbai-400001', 
+  'contact@samplecompany.com', 
+  '', 
+  'John Doe', 
+  '15/3/2023', 
+  'Main_Office_PPTP', 
+  '10.10.41.20', 
+  '192.168.1.10', 
+  'Port1', 
+  'VLAN100', 
+  'Main_Office_PPTP 10.10.41.20 >> 103.123.225.100', 
+  '', 
+  '', 
+  '', 
+  '', 
+  '', 
+  '', 
+  '103.123.225.100', 
+  '255.255.255.248', 
+  '103.123.225.99', 
+  '10 Mbps', 
+  'Rajesh Kumar', 
+  'Testing_Team_A', 
+  'Router-Cisco-2901', 
+  'New connection established for business operations', 
+  'http://103.123.225.99:4040/graphs/queue/Sample_Company_One_CKT_1001/'
+),
+(
+  'Active', 
+  '2001', 
+  'Tech_Solutions_Pvt_Ltd', 
+  '456 Technology Park, IT Corridor, Pune-411001', 
+  'admin@techsolutions.in', 
+  '', 
+  'Priya Sharma', 
+  '10/5/2023', 
+  'Pune_Branch_PPTP', 
+  '10.10.42.10', 
+  '192.168.2.10', 
+  'Port2', 
+  'VLAN200', 
+  'Pune_Branch_PPTP 10.10.42.10 >> 103.123.226.50', 
+  'Backup_Site_PPTP', 
+  '10.10.42.20', 
+  '192.168.2.20', 
+  'Port3', 
+  'VLAN201', 
+  'Backup_Site_PPTP 10.10.42.20 >> 103.123.226.60', 
+  '103.123.226.50', 
+  '255.255.255.240', 
+  '103.123.226.49', 
+  '50 Mbps', 
+  'Amit Patel', 
+  'Testing_Team_B', 
+  'Switch-HP-5900', 
+  'High-speed connection for software development company', 
+  'http://103.123.226.49:4040/graphs/queue/Tech_Solutions_CKT_2001/'
+);

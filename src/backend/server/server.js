@@ -23,13 +23,29 @@ db.connect((err) => {
   console.log('Connected to MySQL database');
 });
 
-// Search leads
+// Enhanced search leads with multiple field support
 app.get('/api/leads', (req, res) => {
   const search = req.query.q || '';
   console.log('Searching leads for:', search);
+  
+  // Enhanced search across multiple fields
+  const searchQuery = `
+    SELECT * FROM LeadDemoData 
+    WHERE ckt LIKE ? 
+       OR cust_name LIKE ? 
+       OR contact_name LIKE ?
+       OR email_id LIKE ?
+       OR sales_person LIKE ?
+       OR address LIKE ?
+    ORDER BY ckt ASC
+    LIMIT 50
+  `;
+  
+  const searchTerm = `%${search}%`;
+  
   db.query(
-    'SELECT * FROM LeadDemoData WHERE ckt LIKE ? OR cust_name LIKE ?',
-    [`%${search}%`, `%${search}%`],
+    searchQuery,
+    [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm],
     (err, results) => {
       if (err) {
         console.error('Error searching leads:', err);
@@ -126,6 +142,30 @@ app.delete('/api/cases/:id', (req, res) => {
   });
 });
 
+// Get lead details by circuit number (for case creation)
+app.get('/api/leads/:ckt', (req, res) => {
+  const ckt = req.params.ckt;
+  console.log('Fetching lead details for CKT:', ckt);
+  
+  db.query(
+    'SELECT * FROM LeadDemoData WHERE ckt = ?',
+    [ckt],
+    (err, results) => {
+      if (err) {
+        console.error('Error fetching lead details:', err);
+        return res.status(500).json({ error: err });
+      }
+      
+      if (results.length === 0) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      console.log('Found lead details for:', ckt);
+      res.json(results[0]);
+    }
+  );
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend server is running' });
@@ -136,6 +176,7 @@ app.listen(3001, () => {
   console.log('Available endpoints:');
   console.log('- GET /api/health');
   console.log('- GET /api/leads?q=search');
+  console.log('- GET /api/leads/:ckt');
   console.log('- GET /api/cases');
   console.log('- POST /api/cases');
   console.log('- PUT /api/cases/:id');

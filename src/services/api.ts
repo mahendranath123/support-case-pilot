@@ -1,4 +1,3 @@
-
 const API_BASE_URL = 'http://localhost:3001/api';
 
 export interface ApiLead {
@@ -7,6 +6,7 @@ export interface ApiLead {
   cust_name: string;
   address: string;
   email_id: string;
+  empty: string;
   contact_name: string;
   comm_date: string;
   pop_name: string;
@@ -58,6 +58,14 @@ export const searchLeads = async (query: string): Promise<ApiLead[]> => {
   const response = await fetch(`${API_BASE_URL}/leads?q=${encodeURIComponent(query)}`);
   if (!response.ok) {
     throw new Error('Failed to search leads');
+  }
+  return response.json();
+};
+
+export const getLeadByCkt = async (ckt: string): Promise<ApiLead> => {
+  const response = await fetch(`${API_BASE_URL}/leads/${encodeURIComponent(ckt)}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch lead details');
   }
   return response.json();
 };

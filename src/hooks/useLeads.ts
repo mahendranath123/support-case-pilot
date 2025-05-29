@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { searchLeads, ApiLead } from '../services/api';
+import { searchLeads, getLeadByCkt, ApiLead } from '../services/api';
 import { Lead } from '../types';
 
 // Convert API lead to frontend lead format
@@ -11,6 +11,7 @@ const convertApiLeadToLead = (apiLead: ApiLead): Lead => ({
   cust_name: apiLead.cust_name,
   address: apiLead.address,
   email_id: apiLead.email_id,
+  empty: apiLead.empty,
   contact_name: apiLead.contact_name,
   comm_date: apiLead.comm_date,
   pop_name: apiLead.pop_name,
@@ -45,6 +46,17 @@ export const useLeadSearch = (query: string) => {
       return apiLeads.map(convertApiLeadToLead);
     },
     enabled: query.length >= 2,
+  });
+};
+
+export const useLeadByCkt = (ckt: string) => {
+  return useQuery({
+    queryKey: ['lead', ckt],
+    queryFn: async () => {
+      const apiLead = await getLeadByCkt(ckt);
+      return convertApiLeadToLead(apiLead);
+    },
+    enabled: !!ckt,
   });
 };
 
