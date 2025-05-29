@@ -1,4 +1,5 @@
 
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { searchLeads, ApiLead } from '../services/api';
 import { Lead } from '../types';
@@ -45,4 +46,28 @@ export const useLeadSearch = (query: string) => {
     },
     enabled: query.length >= 2,
   });
+};
+
+export const useLeads = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const { data = [], isLoading: isSearching } = useQuery({
+    queryKey: ['leads', searchQuery],
+    queryFn: async () => {
+      if (!searchQuery || searchQuery.length < 2) return [];
+      const apiLeads = await searchLeads(searchQuery);
+      return apiLeads.map(convertApiLeadToLead);
+    },
+    enabled: searchQuery.length >= 2,
+  });
+
+  const searchLeads = (query: string) => {
+    setSearchQuery(query);
+  };
+
+  return {
+    data,
+    searchLeads,
+    isSearching
+  };
 };
