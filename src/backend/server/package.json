@@ -1,0 +1,19 @@
+
+{
+  "name": "support-tracker-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Support Tracker application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.0",
+    "cors": "^2.8.5"
+  },
+  "keywords": ["support", "tracker", "backend", "api"],
+  "author": "",
+  "license": "MIT"
+}
