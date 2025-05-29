@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useCases } from '../hooks/useCases';
+import { Case } from '../types';
 
 export function Dashboard() {
   const { user, logout } = useAuth();
@@ -17,6 +18,13 @@ export function Dashboard() {
 
   const pendingCount = cases.filter(c => c.status === 'Pending').length;
   const overdueCount = cases.filter(c => c.status === 'Overdue').length;
+
+  const handleCaseAdded = (newCase: Case) => {
+    // This function will be called when a case is successfully created
+    // The useCreateCase hook in NewCaseForm will handle the actual API call
+    // and invalidate the query cache, so we don't need to do anything here
+    console.log('Case added:', newCase);
+  };
 
   if (isLoading) {
     return (
@@ -104,7 +112,7 @@ export function Dashboard() {
           </TabsContent>
 
           <TabsContent value="new-case" className="animate-fade-in">
-            <NewCaseForm />
+            <NewCaseForm onCaseAdded={handleCaseAdded} />
           </TabsContent>
 
           <TabsContent value="settings" className="animate-fade-in">

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Case, Lead } from '../types';
+import { Case } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,78 +13,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useCreateCase } from '../hooks/useCases';
+import { useLeads } from '../hooks/useLeads';
 
 interface NewCaseFormProps {
   onCaseAdded: (case_: Case) => void;
 }
 
-// Mock lead data - In real app, this would come from your database
-const mockLeads: Lead[] = [
-  {
-    sr_no: "1",
-    ckt: "CKT001",
-    cust_name: "TechCorp Solutions",
-    address: "123 Business Park, Mumbai",
-    email_id: "contact@techcorp.com",
-    contact_name: "Rajesh Kumar",
-    comm_date: "2024-01-15",
-    pop_name: "Mumbai POP",
-    nas_ip_1: "192.168.1.1",
-    switch_ip_1: "192.168.1.10",
-    port_no_1: "24",
-    vlan_id_1: "100",
-    primary_pop: "Mumbai",
-    pop_name_2: "Backup POP",
-    nas_ip_2: "192.168.2.1",
-    switch_ip_2: "192.168.2.10",
-    port_no_2: "12",
-    vlan_id_2: "200",
-    backup: "Yes",
-    usable_ip_address: "203.0.113.10",
-    subnet_mask: "255.255.255.0",
-    gateway: "203.0.113.1",
-    bandwidth: "100 Mbps",
-    sales_person: "Amit Sharma",
-    testing_fe: "Completed",
-    device: "Cisco Router",
-    remarks: "High priority customer",
-    mrtg: "Active"
-  },
-  {
-    sr_no: "2",
-    ckt: "CKT002",
-    cust_name: "Digital Innovations Ltd",
-    address: "456 Tech Valley, Bangalore",
-    email_id: "admin@digitalinno.com",
-    contact_name: "Priya Patel",
-    comm_date: "2024-01-20",
-    pop_name: "Bangalore POP",
-    nas_ip_1: "192.168.3.1",
-    switch_ip_1: "192.168.3.10",
-    port_no_1: "16",
-    vlan_id_1: "300",
-    primary_pop: "Bangalore",
-    pop_name_2: "",
-    nas_ip_2: "",
-    switch_ip_2: "",
-    port_no_2: "",
-    vlan_id_2: "",
-    backup: "No",
-    usable_ip_address: "203.0.114.20",
-    subnet_mask: "255.255.255.0",
-    gateway: "203.0.114.1",
-    bandwidth: "50 Mbps",
-    sales_person: "Neha Singh",
-    testing_fe: "Pending",
-    device: "Juniper Router",
-    remarks: "Standard customer",
-    mrtg: "Inactive"
-  }
-];
-
 export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
   const [selectedLeadCkt, setSelectedLeadCkt] = useState('');
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [ipAddress, setIpAddress] = useState('');
   const [connectivity, setConnectivity] = useState<'Stable' | 'Unstable' | 'Unknown'>('Unknown');
   const [assignedDate, setAssignedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -97,23 +34,26 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
-  // Filter leads based on search value
-  const filteredLeads = mockLeads.filter(lead => 
-    lead.ckt.toLowerCase().includes(searchValue.toLowerCase()) ||
-    lead.cust_name.toLowerCase().includes(searchValue.toLowerCase())
-  );
+  const createCaseMutation = useCreateCase();
+  const { data: leads = [], searchLeads, isSearching } = useLeads();
+
+  // Search for leads when user types
+  useEffect(() => {
+    if (searchValue.length >= 2) {
+      searchLeads(searchValue);
+    }
+  }, [searchValue, searchLeads]);
+
+  const selectedLead = leads.find(lead => lead.ckt === selectedLeadCkt);
 
   useEffect(() => {
-    if (selectedLeadCkt) {
-      const lead = mockLeads.find(l => l.ckt === selectedLeadCkt);
-      setSelectedLead(lead || null);
-      setIpAddress(lead?.usable_ip_address || '');
-      console.log('Selected lead:', lead);
+    if (selectedLead) {
+      setIpAddress(selectedLead.usable_ip_address || '');
+      console.log('Selected lead:', selectedLead);
     } else {
-      setSelectedLead(null);
       setIpAddress('');
     }
-  }, [selectedLeadCkt]);
+  }, [selectedLead]);
 
   const handleLeadSelect = (leadCkt: string) => {
     console.log('Selecting lead:', leadCkt);
@@ -122,7 +62,7 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
     setSearchValue('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedLead || !dueDate) {
@@ -136,42 +76,54 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
 
     const assignedDateTime = new Date(`${assignedDate}T${assignedTime}`);
     const dueDateTime = new Date(`${dueDate}T${dueTime}`);
-    const now = new Date();
 
-    const newCase: Case = {
-      id: Date.now().toString(),
-      leadCkt: selectedLeadCkt,
-      ipAddress,
-      connectivity,
-      assignedDate: assignedDateTime,
-      dueDate: dueDateTime,
-      caseRemarks,
-      status,
-      lead: selectedLead,
-      createdAt: now,
-      timeSpent,
-      lastUpdated: now
-    };
+    try {
+      const caseData = {
+        leadCkt: selectedLeadCkt,
+        ipAddress,
+        connectivity,
+        assignedDate: assignedDateTime.toISOString(),
+        dueDate: dueDateTime.toISOString(),
+        caseRemarks,
+        status,
+      };
 
-    onCaseAdded(newCase);
-    
-    // Reset form
-    setSelectedLeadCkt('');
-    setSelectedLead(null);
-    setIpAddress('');
-    setConnectivity('Unknown');
-    setAssignedDate(new Date().toISOString().split('T')[0]);
-    setAssignedTime(new Date().toTimeString().slice(0, 5));
-    setDueDate('');
-    setDueTime('23:59');
-    setCaseRemarks('');
-    setStatus('Pending');
-    setTimeSpent(0);
+      await createCaseMutation.mutateAsync(caseData);
+      
+      // Create a temporary Case object for the callback
+      const tempCase: Case = {
+        id: Date.now().toString(), // Temporary ID
+        leadCkt: selectedLeadCkt,
+        ipAddress,
+        connectivity,
+        assignedDate: assignedDateTime,
+        dueDate: dueDateTime,
+        caseRemarks,
+        status,
+        lead: selectedLead,
+        createdAt: new Date(),
+        timeSpent,
+        lastUpdated: new Date()
+      };
 
-    toast({
-      title: "Case Created",
-      description: `Case for ${selectedLead.cust_name} has been created successfully`,
-    });
+      onCaseAdded(tempCase);
+      
+      // Reset form
+      setSelectedLeadCkt('');
+      setIpAddress('');
+      setConnectivity('Unknown');
+      setAssignedDate(new Date().toISOString().split('T')[0]);
+      setAssignedTime(new Date().toTimeString().slice(0, 5));
+      setDueDate('');
+      setDueTime('23:59');
+      setCaseRemarks('');
+      setStatus('Pending');
+      setTimeSpent(0);
+      setSearchValue('');
+
+    } catch (error) {
+      console.error('Error creating case:', error);
+    }
   };
 
   return (
@@ -207,9 +159,15 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
                       onValueChange={setSearchValue}
                     />
                     <CommandList>
-                      <CommandEmpty>No lead found.</CommandEmpty>
+                      {isSearching && <CommandEmpty>Searching...</CommandEmpty>}
+                      {!isSearching && leads.length === 0 && searchValue.length >= 2 && (
+                        <CommandEmpty>No lead found.</CommandEmpty>
+                      )}
+                      {!isSearching && searchValue.length < 2 && (
+                        <CommandEmpty>Type at least 2 characters to search.</CommandEmpty>
+                      )}
                       <CommandGroup>
-                        {filteredLeads.map((lead) => (
+                        {leads.map((lead) => (
                           <CommandItem
                             key={lead.ckt}
                             value={lead.ckt}
@@ -420,9 +378,10 @@ export function NewCaseForm({ onCaseAdded }: NewCaseFormProps) {
 
           <Button 
             type="submit" 
+            disabled={createCaseMutation.isPending}
             className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 transition-all duration-300 transform hover:scale-105"
           >
-            Create Support Case
+            {createCaseMutation.isPending ? 'Creating Case...' : 'Create Support Case'}
           </Button>
         </form>
       </CardContent>
