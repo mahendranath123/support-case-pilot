@@ -61,13 +61,13 @@ export const useLeads = () => {
     enabled: searchQuery.length >= 2,
   });
 
-  const searchLeads = (query: string) => {
+  const performSearch = (query: string) => {
     setSearchQuery(query);
   };
 
   return {
     data,
-    searchLeads,
+    searchLeads: performSearch,
     isSearching
   };
 };
