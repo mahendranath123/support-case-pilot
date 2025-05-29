@@ -8,27 +8,42 @@ import { PasswordChange } from './PasswordChange';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Case } from '../types';
+import { useCases } from '../hooks/useCases';
 
 export function Dashboard() {
   const { user, logout } = useAuth();
-  const [cases, setCases] = useState<Case[]>([]);
   const [activeTab, setActiveTab] = useState('cases');
-
-  const handleCaseAdded = (newCase: Case) => {
-    setCases(prev => [newCase, ...prev]);
-  };
-
-  const handleCaseUpdated = (updatedCase: Case) => {
-    setCases(prev => prev.map(c => c.id === updatedCase.id ? updatedCase : c));
-  };
-
-  const handleCaseDeleted = (caseId: string) => {
-    setCases(prev => prev.filter(c => c.id !== caseId));
-  };
+  const { data: cases = [], isLoading, error } = useCases();
 
   const pendingCount = cases.filter(c => c.status === 'Pending').length;
   const overdueCount = cases.filter(c => c.status === 'Overdue').length;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full mx-auto mb-4 animate-pulse"></div>
+          <p className="text-gray-600 text-lg">Loading cases...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-500 rounded-full mx-auto mb-4 flex items-center justify-center">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-red-600 text-lg">Error loading data</p>
+          <p className="text-gray-600">Please check your backend connection</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -85,15 +100,11 @@ export function Dashboard() {
           </TabsList>
 
           <TabsContent value="cases" className="animate-fade-in">
-            <CaseList 
-              cases={cases} 
-              onCaseUpdated={handleCaseUpdated} 
-              onCaseDeleted={handleCaseDeleted}
-            />
+            <CaseList cases={cases} />
           </TabsContent>
 
           <TabsContent value="new-case" className="animate-fade-in">
-            <NewCaseForm onCaseAdded={handleCaseAdded} />
+            <NewCaseForm />
           </TabsContent>
 
           <TabsContent value="settings" className="animate-fade-in">

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Case } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,18 +6,18 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { toast } from '@/hooks/use-toast';
 import { Trash2, Clock } from 'lucide-react';
+import { useUpdateCase, useDeleteCase } from '../hooks/useCases';
 
 interface CaseListProps {
   cases: Case[];
-  onCaseUpdated: (updatedCase: Case) => void;
-  onCaseDeleted: (caseId: string) => void;
 }
 
-export function CaseList({ cases, onCaseUpdated, onCaseDeleted }: CaseListProps) {
+export function CaseList({ cases }: CaseListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const updateCaseMutation = useUpdateCase();
+  const deleteCaseMutation = useDeleteCase();
 
   const filteredCases = cases.filter(case_ => {
     const matchesSearch = case_.leadCkt.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -28,20 +27,17 @@ export function CaseList({ cases, onCaseUpdated, onCaseDeleted }: CaseListProps)
   });
 
   const handleStatusUpdate = (caseItem: Case, newStatus: Case['status']) => {
-    const updatedCase = { ...caseItem, status: newStatus, lastUpdated: new Date() };
-    onCaseUpdated(updatedCase);
-    toast({
-      title: "Status Updated",
-      description: `Case ${caseItem.leadCkt} status changed to ${newStatus}`,
+    updateCaseMutation.mutate({
+      id: parseInt(caseItem.id),
+      updates: {
+        status: newStatus,
+        lastUpdated: new Date().toISOString(),
+      }
     });
   };
 
-  const handleDeleteCase = (caseId: string, leadCkt: string) => {
-    onCaseDeleted(caseId);
-    toast({
-      title: "Case Deleted",
-      description: `Case ${leadCkt} has been deleted successfully`,
-    });
+  const handleDeleteCase = (caseId: string) => {
+    deleteCaseMutation.mutate(parseInt(caseId));
   };
 
   const getStatusColor = (status: Case['status']) => {
@@ -144,7 +140,7 @@ export function CaseList({ cases, onCaseUpdated, onCaseDeleted }: CaseListProps)
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => handleDeleteCase(caseItem.id, caseItem.leadCkt)}
+                          onClick={() => handleDeleteCase(caseItem.id)}
                           className="bg-red-600 hover:bg-red-700"
                         >
                           Delete
@@ -204,6 +200,7 @@ export function CaseList({ cases, onCaseUpdated, onCaseDeleted }: CaseListProps)
                     variant={caseItem.status === status ? "default" : "outline"}
                     onClick={() => handleStatusUpdate(caseItem, status as Case['status'])}
                     className="text-xs transition-all duration-200"
+                    disabled={updateCaseMutation.isPending}
                   >
                     {status === 'OnHold' ? 'On Hold' : status}
                   </Button>
