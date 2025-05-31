@@ -4,14 +4,22 @@ const mysql = require('mysql2');
 const cors = require('cors');
 
 const app = express();
-app.use(cors());
+
+// Enhanced CORS configuration
+app.use(cors({
+  origin: ['https://id-preview--c8c4dca3-4d96-4a24-8806-5a974490aeca.lovable.app', 'https://c8c4dca3-4d96-4a24-8806-5a974490aeca.lovableproject.com', 'http://localhost:3000', 'http://localhost:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
 app.use(express.json());
 
 const db = mysql.createConnection({
   host: 'localhost',
-  user: 'root',      // <-- change this
-  password: 'JeebrMum@102',  // <-- change this
-  database: 'tracker'      // <-- change this
+  user: 'root',
+  password: 'JeebrMum@102',
+  database: 'tracker'
 });
 
 // Test database connection
@@ -28,7 +36,6 @@ app.get('/api/leads', (req, res) => {
   const search = req.query.q || '';
   console.log('Searching leads for:', search);
   
-  // Enhanced search across multiple fields
   const searchQuery = `
     SELECT * FROM LeadDemoData 
     WHERE ckt LIKE ? 
@@ -49,7 +56,7 @@ app.get('/api/leads', (req, res) => {
     (err, results) => {
       if (err) {
         console.error('Error searching leads:', err);
-        return res.status(500).json({ error: err });
+        return res.status(500).json({ error: err.message });
       }
       console.log('Found leads:', results.length);
       res.json(results);
@@ -65,7 +72,7 @@ app.get('/api/cases', (req, res) => {
     (err, results) => {
       if (err) {
         console.error('Error fetching cases:', err);
-        return res.status(500).json({ error: err });
+        return res.status(500).json({ error: err.message });
       }
       console.log('Found cases:', results.length);
       res.json(results);
@@ -87,7 +94,7 @@ app.post('/api/cases', (req, res) => {
     (err, result) => {
       if (err) {
         console.error('Error creating case:', err);
-        return res.status(500).json({ error: err });
+        return res.status(500).json({ error: err.message });
       }
       console.log('Case created with ID:', result.insertId);
       res.json({ id: result.insertId });
@@ -95,16 +102,24 @@ app.post('/api/cases', (req, res) => {
   );
 });
 
-// Update case
+// Update case - Enhanced with better error handling
 app.put('/api/cases/:id', (req, res) => {
   const caseId = req.params.id;
   const updates = req.body;
   
-  console.log('Updating case:', caseId, updates);
+  console.log('Updating case:', caseId, 'with updates:', updates);
+  
+  // Validate case ID
+  if (!caseId || isNaN(parseInt(caseId))) {
+    return res.status(400).json({ error: 'Invalid case ID' });
+  }
   
   // Build dynamic update query
   const updateFields = [];
   const updateValues = [];
+  
+  // Add lastUpdated timestamp
+  updates.lastUpdated = new Date().toISOString();
   
   Object.keys(updates).forEach(key => {
     if (key !== 'id') {
@@ -113,32 +128,55 @@ app.put('/api/cases/:id', (req, res) => {
     }
   });
   
-  updateValues.push(caseId);
+  if (updateFields.length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+  
+  updateValues.push(parseInt(caseId));
   
   const query = `UPDATE cases SET ${updateFields.join(', ')} WHERE id = ?`;
+  
+  console.log('Executing update query:', query, 'with values:', updateValues);
   
   db.query(query, updateValues, (err, result) => {
     if (err) {
       console.error('Error updating case:', err);
-      return res.status(500).json({ error: err });
+      return res.status(500).json({ error: err.message });
     }
-    console.log('Case updated:', result.affectedRows, 'rows affected');
-    res.json({ success: true });
+    
+    if (result.affectedRows === 0) {
+      console.log('No case found with ID:', caseId);
+      return res.status(404).json({ error: 'Case not found' });
+    }
+    
+    console.log('Case updated successfully:', result.affectedRows, 'rows affected');
+    res.json({ success: true, affectedRows: result.affectedRows });
   });
 });
 
-// Delete case
+// Delete case - Enhanced with better error handling
 app.delete('/api/cases/:id', (req, res) => {
   const caseId = req.params.id;
   console.log('Deleting case:', caseId);
   
-  db.query('DELETE FROM cases WHERE id = ?', [caseId], (err, result) => {
+  // Validate case ID
+  if (!caseId || isNaN(parseInt(caseId))) {
+    return res.status(400).json({ error: 'Invalid case ID' });
+  }
+  
+  db.query('DELETE FROM cases WHERE id = ?', [parseInt(caseId)], (err, result) => {
     if (err) {
       console.error('Error deleting case:', err);
-      return res.status(500).json({ error: err });
+      return res.status(500).json({ error: err.message });
     }
-    console.log('Case deleted:', result.affectedRows, 'rows affected');
-    res.json({ success: true });
+    
+    if (result.affectedRows === 0) {
+      console.log('No case found with ID:', caseId);
+      return res.status(404).json({ error: 'Case not found' });
+    }
+    
+    console.log('Case deleted successfully:', result.affectedRows, 'rows affected');
+    res.json({ success: true, affectedRows: result.affectedRows });
   });
 });
 
@@ -153,7 +191,7 @@ app.get('/api/leads/:ckt', (req, res) => {
     (err, results) => {
       if (err) {
         console.error('Error fetching lead details:', err);
-        return res.status(500).json({ error: err });
+        return res.status(500).json({ error: err.message });
       }
       
       if (results.length === 0) {
@@ -168,11 +206,25 @@ app.get('/api/leads/:ckt', (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Backend server is running' });
+  res.json({ 
+    status: 'OK', 
+    message: 'Backend server is running',
+    timestamp: new Date().toISOString(),
+    database: 'Connected'
+  });
 });
 
-app.listen(3001, () => {
-  console.log('Backend server running on port 3001');
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// Listen on all interfaces
+const PORT = 3001;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server running on port ${PORT}`);
+  console.log('Server listening on all interfaces (0.0.0.0)');
   console.log('Available endpoints:');
   console.log('- GET /api/health');
   console.log('- GET /api/leads?q=search');
