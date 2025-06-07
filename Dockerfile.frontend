@@ -1,0 +1,44 @@
+# ── Dockerfile.frontend (HTTPD version) ─────────────────────────────────────────
+
+##
+## Stage 1: Build the Vite + React app
+##
+FROM node:18-alpine AS builder
+
+WORKDIR /usr/src/app
+
+# Copy package.json / lockfile / tsconfigs / vite configs
+COPY package.json        ./package.json
+COPY package-lock.json   ./package-lock.json
+COPY vite.config.ts      ./vite.config.ts
+COPY tsconfig.json       ./tsconfig.json
+COPY tsconfig.app.json   ./tsconfig.app.json
+COPY tsconfig.node.json  ./tsconfig.node.json
+
+# Install dependencies, then copy the rest of the source
+RUN npm install
+COPY . .
+
+# Build the production assets into /usr/src/app/dist
+RUN npm run build
+
+##
+## Stage 2: Serve via Apache HTTPD (httpd:alpine)
+##
+FROM httpd:2.4-alpine
+
+# Copy our custom httpd.conf (below) into the container
+COPY httpd.conf /usr/local/apache2/conf/httpd.conf
+
+# Remove the default htdocs content
+RUN rm -rf /usr/local/apache2/htdocs/*
+
+# Copy the built React “dist” into Apache's document root
+COPY --from=builder /usr/src/app/dist/ /usr/local/apache2/htdocs/
+
+# Expose port 80 for HTTP
+EXPOSE 80
+
+# Start Apache in the foreground
+CMD ["httpd", "-D", "FOREGROUND"]
+

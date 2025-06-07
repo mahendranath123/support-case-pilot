@@ -1,8 +1,8 @@
 // src/services/api.ts
 
-import { User } from "@/contexts/AuthContext";
+import { User } from '@/contexts/AuthContext';
 
-const API_BASE_URL = "http://103.127.117.182:3001/api";
+const API_BASE_URL = 'http://103.127.117.182:3001/api';
 
 export interface ApiLead {
   sr_no: string;
@@ -36,27 +36,21 @@ export interface ApiLead {
   mrtg: string;
 }
 
-// ─── ApiCase now includes “assignedToUser” instead of “assignedBy” ───────────────────────
 export interface ApiCase {
   id: number;
   leadCkt: string;
-  ipAddress: string;
+  ipAddress: string | null;
   connectivity: string;
   assignedDate: string;
   dueDate: string;
-  caseRemarks: string;
+  caseRemarks: string | null;
   status: string;
   createdAt: string;
-  lastUpdated: string;
   timeSpent?: number;
-
-  // ─── “assignedToUser” field returned by the API (username of assignee) ───────────────
-  assignedToUser?: string | null;
-
+  lastUpdated: string;
+  device?: string | null;
   createdBy: number;
   createdByUser: string;
-  device?: string;
-  companyName?: string;
 }
 
 export interface ApiUser {
@@ -66,49 +60,61 @@ export interface ApiUser {
   createdAt: string;
 }
 
-// Utility to build role‐based headers (x-user-id, x-user-role)
+// Utility to build role-based headers for cases/users endpoints
 function buildAuthHeaders(user: User | null): Record<string, string> {
   if (!user) return {};
   return {
-    "x-user-id": String(user.id),
-    "x-user-role": user.role,
+    'x-user-id': String(user.id),
+    'x-user-role': user.role,
   };
 }
 
 // ─── Leads ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Search leads by query string.
+ */
 export const searchLeads = async (query: string): Promise<ApiLead[]> => {
   const response = await fetch(
     `${API_BASE_URL}/leads?q=${encodeURIComponent(query)}`
   );
-  if (!response.ok) throw new Error("Failed to search leads");
+  if (!response.ok) throw new Error('Failed to search leads');
   return response.json();
 };
 
+/**
+ * (Optional) Fetch a single lead by ckt if endpoint exists.
+ * Note: Ensure backend has GET /api/leads/:ckt implemented; otherwise remove.
+ */
 export const getLeadByCkt = async (ckt: string): Promise<ApiLead> => {
   const response = await fetch(
     `${API_BASE_URL}/leads/${encodeURIComponent(ckt)}`
   );
-  if (!response.ok) throw new Error("Failed to fetch lead details");
+  if (!response.ok) throw new Error('Failed to fetch lead details');
   return response.json();
 };
 
 // ─── Cases ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Fetch cases.
+ * - Admin sees all cases
+ * - User sees only cases they created
+ * Frontend must pass the logged-in User to build headers.
+ */
 export const getCases = async (user: User | null): Promise<ApiCase[]> => {
   const headers = buildAuthHeaders(user);
   const response = await fetch(`${API_BASE_URL}/cases`, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
   });
-  if (!response.ok) throw new Error("Failed to fetch cases");
+  if (!response.ok) throw new Error('Failed to fetch cases');
   return response.json();
 };
 
-// ─── CreateCasePayload now includes “assignedTo” (a numeric user ID) ───────────────
 interface CreateCasePayload {
   leadCkt: string;
   ipAddress: string | null;
@@ -119,14 +125,11 @@ interface CreateCasePayload {
   status: string;
   timeSpent: number;
   device?: string | null;
-
-  // ─── “assignedTo” is the numeric user ID (or null if unassigned) ─────────────────
-  assignedTo: number | null;
 }
 
 /**
  * Create a new case.
- * Backend requires x-user-id and x-user-role headers to know who is creating it.
+ * Backend requires x-user-id and x-user-role headers to assign createdBy.
  */
 export const createCase = async (
   caseData: CreateCasePayload,
@@ -134,73 +137,86 @@ export const createCase = async (
 ): Promise<ApiCase> => {
   const headers = buildAuthHeaders(user);
   const response = await fetch(`${API_BASE_URL}/cases`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
     body: JSON.stringify(caseData),
   });
-  if (!response.ok) throw new Error("Failed to create case");
+  if (!response.ok) throw new Error('Failed to create case');
   return response.json();
 };
 
+/**
+ * Update an existing case by ID.
+ * Only status, caseRemarks, timeSpent, or device can be updated.
+ */
 export const updateCase = async (
   id: number,
-  updates: Partial<
-    Pick<ApiCase, "status" | "caseRemarks" | "timeSpent" | "device" | "assignedToUser">
-  > & { assignedTo?: number | null },
+  updates: Partial<Pick<ApiCase, 'status' | 'caseRemarks' | 'timeSpent' | 'device'>>,
   user: User | null
 ): Promise<ApiCase> => {
   const headers = buildAuthHeaders(user);
   const response = await fetch(`${API_BASE_URL}/cases/${id}`, {
-    method: "PUT",
+    method: 'PUT',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
     body: JSON.stringify(updates),
   });
-  if (!response.ok) throw new Error("Failed to update case");
+  if (!response.ok) throw new Error('Failed to update case');
   return response.json();
 };
 
+/**
+ * Delete a case by ID.
+ * Only admins can delete; backend enforces via createdBy matching or role.
+ */
 export const deleteCase = async (id: number, user: User | null): Promise<void> => {
   const headers = buildAuthHeaders(user);
   const response = await fetch(`${API_BASE_URL}/cases/${id}`, {
-    method: "DELETE",
+    method: 'DELETE',
     headers,
   });
-  if (!response.ok) throw new Error("Failed to delete case");
+  if (!response.ok) throw new Error('Failed to delete case');
 };
 
 // ─── Auth / Users ───────────────────────────────────────────────────────────────
 
+/**
+ * Login endpoint: returns user object (id, username, role).
+ */
 export const login = async (
   username: string,
   password: string
 ): Promise<{ user: ApiUser }> => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({ username, password }),
   });
-  if (!response.ok) throw new Error("Invalid credentials");
+  if (!response.ok) throw new Error('Invalid credentials');
   return response.json();
 };
 
+/**
+ * Fetch all users.
+ * Only admins can call this; backend ignores x-user-role but will return 403 if not admin.
+ */
 export const getUsers = async (user: User | null): Promise<ApiUser[]> => {
   const headers = buildAuthHeaders(user);
   const response = await fetch(`${API_BASE_URL}/users`, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
   });
-  if (!response.ok) throw new Error("Failed to fetch users");
+  if (!response.ok) throw new Error('Failed to fetch users');
   return response.json();
 };
 
@@ -210,20 +226,24 @@ interface CreateUserPayload {
   role: string;
 }
 
+/**
+ * Create a new user.
+ * Only admins can call; backend requires x-user-id and x-user-role headers.
+ */
 export const createUser = async (
   userData: CreateUserPayload,
   currentUser: User | null
 ): Promise<ApiUser> => {
   const headers = buildAuthHeaders(currentUser);
   const response = await fetch(`${API_BASE_URL}/users`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
     body: JSON.stringify(userData),
   });
-  if (!response.ok) throw new Error("Failed to create user");
+  if (!response.ok) throw new Error('Failed to create user');
   return response.json();
 };
 
@@ -233,6 +253,10 @@ interface UpdateUserPayload {
   role?: string;
 }
 
+/**
+ * Update an existing user by ID.
+ * Only admins can call; backend requires headers.
+ */
 export const updateUser = async (
   id: number,
   updates: UpdateUserPayload,
@@ -240,23 +264,27 @@ export const updateUser = async (
 ): Promise<ApiUser> => {
   const headers = buildAuthHeaders(currentUser);
   const response = await fetch(`${API_BASE_URL}/users/${id}`, {
-    method: "PUT",
+    method: 'PUT',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
     body: JSON.stringify(updates),
   });
-  if (!response.ok) throw new Error("Failed to update user");
+  if (!response.ok) throw new Error('Failed to update user');
   return response.json();
 };
 
+/**
+ * Delete a user by ID.
+ * Only admins can call; backend requires headers.
+ */
 export const deleteUser = async (id: number, currentUser: User | null): Promise<void> => {
   const headers = buildAuthHeaders(currentUser);
   const response = await fetch(`${API_BASE_URL}/users/${id}`, {
-    method: "DELETE",
+    method: 'DELETE',
     headers,
   });
-  if (!response.ok) throw new Error("Failed to delete user");
+  if (!response.ok) throw new Error('Failed to delete user');
 };
 

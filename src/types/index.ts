@@ -1,11 +1,12 @@
+// src/types/index.ts
 
 export interface Lead {
   sr_no: string;
-  ckt: string; // Lead number
-  cust_name: string; // Company name
+  ckt: string;            // Lead number
+  cust_name: string;      // Company name
   address: string;
   email_id: string;
-  empty: string;
+  reserved_field: string; // was “empty” before—matches ApiLead
   contact_name: string;
   comm_date: string;
   pop_name: string;
@@ -32,23 +33,39 @@ export interface Lead {
 }
 
 export interface Case {
-  id: string;
+  id: number;
   leadCkt: string;
   ipAddress: string;
   connectivity: "Stable" | "Unstable" | "Unknown";
-  assignedDate: Date;
-  dueDate: Date;
+  assignedDate: string;    // ISO string from backend
+  dueDate: string;         // ISO string from backend
   caseRemarks: string;
   status: "Pending" | "Overdue" | "Completed" | "OnHold";
-  lead?: Lead;
-  createdAt: Date;
-  timeSpent?: number; // Time spent in minutes
-  lastUpdated: Date;
+  createdAt: string;       // ISO string from backend
+  lastUpdated: string;     // ISO string from backend
+  timeSpent?: number;      // Time spent in minutes (optional)
+
+  //
+  // ─── New assignment fields ───────────────────────────────────────────────────
+  //
+
+  // Numeric user‐ID of who this case is assigned to (or null if unassigned)
+  assignedTo?: number | null;
+
+  // Username of the assignee (populated by the API JOIN); if unassigned, null
+  assignedToUser?: string | null;
+
+  createdBy: number;       // user‐ID who originally created this case
+  createdByUser: string;   // username of that creator
+  device?: string;         // optional device field
+  companyName?: string;    // optional company name (JOINed from LeadDemoData)
+  lead?: Lead;             // if you ever populate the full Lead object
 }
 
 export interface User {
-  id: string;
+  id: number;
   username: string;
   role: "admin" | "user";
-  createdAt: Date;
+  createdAt: string;       // ISO string from backend
 }
+

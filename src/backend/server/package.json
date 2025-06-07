@@ -1,4 +1,3 @@
-
 {
   "name": "support-tracker-backend",
   "version": "1.0.0",
@@ -9,11 +8,18 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "mysql2": "^3.6.0",
-    "cors": "^2.8.5"
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.1"
   },
-  "keywords": ["support", "tracker", "backend", "api"],
+  "keywords": [
+    "support",
+    "tracker",
+    "backend",
+    "api"
+  ],
   "author": "",
   "license": "MIT"
 }

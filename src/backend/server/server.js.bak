@@ -8,15 +8,12 @@
  * On startup, this script ensures that:
  *  - LeadDemoData
  *  - users
- *  - cases (with createdBy + assignedTo foreign keys)
+ *  - cases (with createdBy + assignedTo foreign keys) 
  * exist (creating them if necessary).
  *
  * Endpoints:
  *  GET    /api/health
- *  GET    /api/leads?q=<search>           (search)
- *  POST   /api/leads                      (create new lead row)
- *  PUT    /api/leads/:ckt                 (update existing lead by ckt)
- *  DELETE /api/leads/:ckt                 (delete lead by ckt)
+ *  GET    /api/leads?q=<search>
  *  GET    /api/cases
  *  GET    /api/cases/:id/details
  *  POST   /api/cases
@@ -31,9 +28,6 @@
  * To use GET/POST/PUT/DELETE /api/cases, the frontend must include headers:
  *    x-user-id:   <integer user ID>
  *    x-user-role: <"admin" or "user">
- *
- * To use POST/PUT/DELETE /api/leads, no authentication headers are required
- * (any client may manage lead data).
  */
 
 const express = require('express');
@@ -75,6 +69,7 @@ const pool = mysql.createPool({
   }
 })();
 
+
 /**
  * Creates (if not exists) the three tables we need:
  *  - LeadDemoData
@@ -86,7 +81,7 @@ async function createAllTables() {
   const createLeadTable = `
     CREATE TABLE IF NOT EXISTS LeadDemoData (
       sr_no VARCHAR(50),
-      ckt VARCHAR(255) NOT NULL PRIMARY KEY,
+      ckt VARCHAR(255) NOT NULL,
       cust_name VARCHAR(500),
       address TEXT,
       email_id VARCHAR(255),
@@ -184,6 +179,7 @@ async function createAllTables() {
   }
 }
 
+
 // ─── 3) HEALTH CHECK ENDPOINT ────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   try {
@@ -193,6 +189,7 @@ app.get('/api/health', async (req, res) => {
     res.status(500).json({ status: 'DOWN', error: err.message });
   }
 });
+
 
 // ─── 4) SEARCH LEADS ─────────────────────────────────────────────────────────────
 app.get('/api/leads', async (req, res) => {
@@ -225,250 +222,10 @@ app.get('/api/leads', async (req, res) => {
   }
 });
 
-// ─── 5) CREATE NEW LEAD ───────────────────────────────────────────────────────────
-app.post('/api/leads', async (req, res) => {
-  /**
-   * Body should include all LeadDemoData columns, e.g.:
-   * {
-   *   sr_no: string,
-   *   ckt: string,           // PRIMARY KEY
-   *   cust_name: string,
-   *   address: string,
-   *   email_id: string,
-   *   reserved_field: string,
-   *   contact_name: string,
-   *   comm_date: string,
-   *   pop_name: string,
-   *   nas_ip_1: string,
-   *   switch_ip_1: string,
-   *   port_no_1: string,
-   *   vlan_id_1: string,
-   *   primary_pop: string,
-   *   pop_name_2: string,
-   *   nas_ip_2: string,
-   *   switch_ip_2: string,
-   *   port_no_2: string,
-   *   vlan_id_2: string,
-   *   backup: string,
-   *   usable_ip_address: string,
-   *   subnet_mask: string,
-   *   gateway: string,
-   *   bandwidth: string,
-   *   sales_person: string,
-   *   testing_fe: string,
-   *   device: string,
-   *   remarks: string,
-   *   mrtg: string
-   * }
-   */
-  const {
-    sr_no,
-    ckt,
-    cust_name,
-    address,
-    email_id,
-    reserved_field,
-    contact_name,
-    comm_date,
-    pop_name,
-    nas_ip_1,
-    switch_ip_1,
-    port_no_1,
-    vlan_id_1,
-    primary_pop,
-    pop_name_2,
-    nas_ip_2,
-    switch_ip_2,
-    port_no_2,
-    vlan_id_2,
-    backup,
-    usable_ip_address,
-    subnet_mask,
-    gateway,
-    bandwidth,
-    sales_person,
-    testing_fe,
-    device,
-    remarks,
-    mrtg
-  } = req.body;
-
-  if (!ckt) {
-    return res.status(400).json({ error: 'Missing required field: ckt' });
-  }
-
-  try {
-    const [result] = await pool.query(
-      `
-      INSERT INTO LeadDemoData
-        ( sr_no
-        , ckt
-        , cust_name
-        , address
-        , email_id
-        , reserved_field
-        , contact_name
-        , comm_date
-        , pop_name
-        , nas_ip_1
-        , switch_ip_1
-        , port_no_1
-        , vlan_id_1
-        , primary_pop
-        , pop_name_2
-        , nas_ip_2
-        , switch_ip_2
-        , port_no_2
-        , vlan_id_2
-        , backup
-        , usable_ip_address
-        , subnet_mask
-        , gateway
-        , bandwidth
-        , sales_person
-        , testing_fe
-        , device
-        , remarks
-        , mrtg
-        )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-      `,
-      [
-        sr_no || null,
-        ckt,
-        cust_name || null,
-        address || null,
-        email_id || null,
-        reserved_field || null,
-        contact_name || null,
-        comm_date || null,
-        pop_name || null,
-        nas_ip_1 || null,
-        switch_ip_1 || null,
-        port_no_1 || null,
-        vlan_id_1 || null,
-        primary_pop || null,
-        pop_name_2 || null,
-        nas_ip_2 || null,
-        switch_ip_2 || null,
-        port_no_2 || null,
-        vlan_id_2 || null,
-        backup || null,
-        usable_ip_address || null,
-        subnet_mask || null,
-        gateway || null,
-        bandwidth || null,
-        sales_person || null,
-        testing_fe || null,
-        device || null,
-        remarks || null,
-        mrtg || null
-      ]
-    );
-
-    console.log('Lead created with CKT:', ckt);
-
-    // Return the newly inserted lead
-    const [rows] = await pool.query(
-      `
-      SELECT *
-      FROM LeadDemoData
-      WHERE ckt = ?;
-      `,
-      [ckt]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    console.error('Database error while creating lead:', err);
-    if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ error: 'Lead with this CKT already exists' });
-    }
-    res.status(500).json({ error: 'Database operation failed while creating lead', details: err.sqlMessage });
-  }
-});
-
-// ─── 6) UPDATE AN EXISTING LEAD ─────────────────────────────────────────────────
-app.put('/api/leads/:ckt', async (req, res) => {
-  const cktParam = req.params.ckt;
-  const updates = req.body;
-
-  // Build SET clause dynamically based on provided fields
-  const fields = [];
-  const values = [];
-
-  // Allowed columns in LeadDemoData
-  const allowedCols = new Set([
-    'sr_no', 'cust_name', 'address', 'email_id', 'reserved_field', 'contact_name',
-    'comm_date', 'pop_name', 'nas_ip_1', 'switch_ip_1', 'port_no_1', 'vlan_id_1',
-    'primary_pop', 'pop_name_2', 'nas_ip_2', 'switch_ip_2', 'port_no_2',
-    'vlan_id_2', 'backup', 'usable_ip_address', 'subnet_mask', 'gateway',
-    'bandwidth', 'sales_person', 'testing_fe', 'device', 'remarks', 'mrtg'
-  ]);
-
-  for (const [key, val] of Object.entries(updates)) {
-    if (allowedCols.has(key)) {
-      fields.push(`${key} = ?`);
-      values.push(val || null);
-    }
-  }
-
-  if (fields.length === 0) {
-    return res.status(400).json({ error: 'No valid fields provided for update' });
-  }
-
-  values.push(cktParam);
-
-  try {
-    const [result] = await pool.query(
-      `
-      UPDATE LeadDemoData
-      SET ${fields.join(', ')}
-      WHERE ckt = ?;
-      `,
-      values
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Lead not found' });
-    }
-
-    // Return the updated lead
-    const [rows] = await pool.query(
-      `
-      SELECT *
-      FROM LeadDemoData
-      WHERE ckt = ?;
-      `,
-      [cktParam]
-    );
-    res.json(rows[0]);
-  } catch (err) {
-    console.error('Error updating lead:', err);
-    res.status(500).json({ error: 'Database error while updating lead.' });
-  }
-});
-
-// ─── 7) DELETE A LEAD ────────────────────────────────────────────────────────────
-app.delete('/api/leads/:ckt', async (req, res) => {
-  const cktParam = req.params.ckt;
-  try {
-    const [result] = await pool.query(
-      `DELETE FROM LeadDemoData WHERE ckt = ?;`,
-      [cktParam]
-    );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Lead not found or already deleted.' });
-    }
-    res.status(204).send();
-  } catch (err) {
-    console.error('Error deleting lead:', err);
-    res.status(500).json({ error: 'Database error while deleting lead.' });
-  }
-});
 
 
 /**
- * 8) GET ALL CASES
+ * 5) GET ALL CASES
  *    - If x-user-role === "admin"  → return all cases
  *    - Else (role === "user")      → return only cases WHERE assignedTo = <that user ID>
  *  The JSON response now includes:
@@ -538,16 +295,17 @@ app.get('/api/cases', async (req, res) => {
 });
 
 
+
 /**
- * 9) CREATE A NEW CASE
+ * 6) CREATE A NEW CASE
  *    - frontend sends these headers:
  *       x-user-id, x-user-role
  *    - request body must include:
  *       • leadCkt       (string)
  *       • ipAddress     (string|null)
  *       • connectivity   (enum)
- *       • assignedDate  (ISO string, local without adjustment)
- *       • dueDate       (ISO string, local without adjustment)
+ *       • assignedDate  (ISO string)
+ *       • dueDate       (ISO string)
  *       • caseRemarks   (string|null)
  *       • status        (enum)
  *       • timeSpent     (number)
@@ -572,8 +330,8 @@ app.post('/api/cases', async (req, res) => {
     leadCkt,
     ipAddress,
     connectivity,
-    assignedDate,   // ISO string ('YYYY-MM-DDTHH:MM')
-    dueDate,        // ISO string ('YYYY-MM-DDTHH:MM')
+    assignedDate,   // ISO string
+    dueDate,        // ISO string
     caseRemarks,
     status,
     timeSpent = 0,
@@ -590,12 +348,10 @@ app.post('/api/cases', async (req, res) => {
 
   let formattedAssignedDate, formattedDueDate;
   try {
-    // Instead of converting to UTC via toISOString (which shifts local time),
-    // simply replace 'T' with space and truncate to seconds. DB will store as given.
-    formattedAssignedDate = assignedDate.replace('T', ' ').slice(0, 19);
-    formattedDueDate      = dueDate.replace('T', ' ').slice(0, 19);
+    formattedAssignedDate = new Date(assignedDate).toISOString().slice(0, 19).replace('T', ' ');
+    formattedDueDate      = new Date(dueDate).toISOString().slice(0, 19).replace('T', ' ');
   } catch (dateError) {
-    console.error('Date formatting error:', dateError);
+    console.error('Date parsing error:', dateError);
     return res.status(400).json({ error: 'Invalid date format' });
   }
 
@@ -666,8 +422,9 @@ app.post('/api/cases', async (req, res) => {
 });
 
 
+
 /**
- * 10) GET A SINGLE CASE’S FULL DETAILS
+ * 7) GET A SINGLE CASE’S FULL DETAILS
  *    - Joins in both creator and assignee usernames
  */
 app.get('/api/cases/:id/details', async (req, res) => {
@@ -708,8 +465,9 @@ app.get('/api/cases/:id/details', async (req, res) => {
 });
 
 
+
 /**
- * 11) UPDATE A CASE
+ * 8) UPDATE A CASE
  *    - We now allow updating “assignedTo” in addition to status/remarks/etc.
  *    - After UPDATE, return the full row (including joined usernames).
  */
@@ -798,8 +556,9 @@ app.put('/api/cases/:id', async (req, res) => {
 });
 
 
+
 /**
- * 12) DELETE A CASE
+ * 9) DELETE A CASE
  */
 app.delete('/api/cases/:id', async (req, res) => {
   const caseId = parseInt(req.params.id, 10);
@@ -820,8 +579,9 @@ app.delete('/api/cases/:id', async (req, res) => {
 });
 
 
+
 /**
- * 13) AUTH: SIMPLE LOGIN
+ * 10) AUTH: SIMPLE LOGIN
  */
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
@@ -853,8 +613,9 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 
+
 /**
- * 14) GET ALL USERS
+ * 11) GET ALL USERS
  */
 app.get('/api/users', async (req, res) => {
   try {
@@ -869,8 +630,9 @@ app.get('/api/users', async (req, res) => {
 });
 
 
+
 /**
- * 15) CREATE A NEW USER
+ * 12) CREATE A NEW USER
  */
 app.post('/api/users', async (req, res) => {
   const { username, password, role = 'user' } = req.body;
@@ -905,8 +667,9 @@ app.post('/api/users', async (req, res) => {
 });
 
 
+
 /**
- * 16) UPDATE AN EXISTING USER
+ * 13) UPDATE AN EXISTING USER
  */
 app.put('/api/users/:id', async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -964,8 +727,9 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 
+
 /**
- * 17) DELETE A USER
+ * 14) DELETE A USER
  */
 app.delete('/api/users/:id', async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -985,8 +749,9 @@ app.delete('/api/users/:id', async (req, res) => {
 });
 
 
+
 /**
- * 18) START THE SERVER
+ * 15) START THE SERVER
  */
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
@@ -994,9 +759,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('Available endpoints:');
   console.log('- GET    /api/health');
   console.log('- GET    /api/leads?q=<search_string>');
-  console.log('- POST   /api/leads');
-  console.log('- PUT    /api/leads/:ckt');
-  console.log('- DELETE /api/leads/:ckt');
   console.log('- GET    /api/cases');
   console.log('- GET    /api/cases/:id/details');
   console.log('- POST   /api/cases');

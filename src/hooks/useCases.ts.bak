@@ -12,43 +12,25 @@ import { Case } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
-/**
- * Convert ApiCase → frontend Case, picking up all fields including:
- *   - createdBy
- *   - createdByUser
- *   - assignedTo
- *   - assignedToUser
- *   - device
- *   - companyName
- */
+// ─── Convert ApiCase to Frontend Case ───────────────────────────────────────────
 const convertApiCaseToCase = (apiCase: ApiCase): Case => ({
-  id: apiCase.id,
+  id: apiCase.id.toString(),
   leadCkt: apiCase.leadCkt,
   ipAddress: apiCase.ipAddress,
   connectivity: apiCase.connectivity as 'Stable' | 'Unstable' | 'Unknown',
-  assignedDate: apiCase.assignedDate,
-  dueDate: apiCase.dueDate,
+  assignedDate: new Date(apiCase.assignedDate),
+  dueDate: new Date(apiCase.dueDate),
   caseRemarks: apiCase.caseRemarks,
   status: apiCase.status as 'Pending' | 'Overdue' | 'Completed' | 'OnHold',
-  createdAt: apiCase.createdAt,
-  lastUpdated: apiCase.lastUpdated,
+  createdAt: new Date(apiCase.createdAt),
   timeSpent: apiCase.timeSpent,
-
-  // ─── New fields ────────────────────────────────────
-  assignedTo: apiCase.assignedTo ?? null,
-  assignedToUser: apiCase.assignedToUser ?? null,
-
+  lastUpdated: new Date(apiCase.lastUpdated),
   createdBy: apiCase.createdBy,
   createdByUser: apiCase.createdByUser,
   device: apiCase.device || '',
-  companyName: apiCase.companyName || '',
 });
 
-/**
- * Fetch Cases
- *  - Admin sees all; user sees only those where assignedTo = their user ID.
- *  - Relies on x-user-id / x-user-role headers, courtesy of useAuth().
- */
+// ─── Fetch All Cases Hook ───────────────────────────────────────────────────────
 export const useCases = () => {
   const { user } = useAuth();
   return useQuery({
@@ -57,15 +39,11 @@ export const useCases = () => {
       const apiCases = await getCases(user);
       return apiCases.map(convertApiCaseToCase);
     },
-    enabled: !!user, // only run when user is defined
+    enabled: !!user,
   });
 };
 
-/**
- * Create Case
- *  - After creating, we invalidate the same queryKey so that the new case
- *    (with its assignedToUser) shows up immediately.
- */
+// ─── Create Case Hook ────────────────────────────────────────────────────────────
 export const useCreateCase = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -73,38 +51,33 @@ export const useCreateCase = () => {
   return useMutation({
     mutationFn: (caseData: {
       leadCkt: string;
-      ipAddress: string | null;
-      connectivity: string;
+      ipAddress: string;
+      connectivity: 'Stable' | 'Unstable' | 'Unknown';
       assignedDate: string;
       dueDate: string;
-      caseRemarks: string | null;
-      status: string;
+      caseRemarks: string;
+      status: 'Pending' | 'Overdue' | 'Completed' | 'OnHold';
       timeSpent: number;
-      device?: string | null;
-      assignedTo: number | null;
+      device?: string;
     }) => createCase(caseData, user),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cases', user?.id, user?.role] });
       toast({
         title: 'Success',
-        description: 'Case created successfully',
+        description: 'Case created successfully.',
       });
     },
-    onError: (error: any) => {
+    onError: (err: any) => {
       toast({
         title: 'Error',
-        description: (error as Error).message,
+        description: err?.message || 'Failed to create case.',
         variant: 'destructive',
       });
     },
   });
 };
 
-/**
- * Update Case
- *  - Now that the backend can update { status, caseRemarks, timeSpent, device, assignedTo },
- *    we simply invalidate the same queryKey afterward.
- */
+// ─── Update Case Hook ────────────────────────────────────────────────────────────
 export const useUpdateCase = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -112,34 +85,26 @@ export const useUpdateCase = () => {
   return useMutation({
     mutationFn: (args: {
       id: number;
-      updates: Partial<
-        Pick<
-          ApiCase,
-          'status' | 'caseRemarks' | 'timeSpent' | 'device' | 'assignedTo'
-        >
-      >;
+      updates: Partial<Pick<ApiCase, 'status' | 'caseRemarks' | 'timeSpent' | 'device'>>;
     }) => updateCase(args.id, args.updates, user),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cases', user?.id, user?.role] });
       toast({
         title: 'Success',
-        description: 'Case updated successfully',
+        description: 'Case updated successfully.',
       });
     },
-    onError: (error: any) => {
+    onError: (err: any) => {
       toast({
         title: 'Error',
-        description: (error as Error).message,
+        description: err?.message || 'Failed to update case.',
         variant: 'destructive',
       });
     },
   });
 };
 
-/**
- * Delete Case
- *  - After a successful delete, we re‐invalidate to refetch.
- */
+// ─── Delete Case Hook ────────────────────────────────────────────────────────────
 export const useDeleteCase = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -150,13 +115,13 @@ export const useDeleteCase = () => {
       queryClient.invalidateQueries({ queryKey: ['cases', user?.id, user?.role] });
       toast({
         title: 'Success',
-        description: 'Case deleted successfully',
+        description: 'Case deleted successfully.',
       });
     },
-    onError: (error: any) => {
+    onError: (err: any) => {
       toast({
         title: 'Error',
-        description: (error as Error).message,
+        description: err?.message || 'Failed to delete case.',
         variant: 'destructive',
       });
     },

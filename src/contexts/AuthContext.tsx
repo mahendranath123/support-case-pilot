@@ -1,140 +1,338 @@
+// src/contexts/AuthContext.tsx
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
 
-interface AuthContextType {
-  user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
-  createUser: (username: string, password: string, role: "admin" | "user") => Promise<boolean>;
-  users: User[];
-  isLoading: boolean;
+//
+// 1) TYPE DEFINITIONS
+//
+interface RawUserFromServer {
+  id: number;
+  username: string;
+  role: 'admin' | 'user';
+  createdAt?: string;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export interface User {
+  id: number;
+  username: string;
+  role: 'admin' | 'user';
+  createdAt?: Date;
+}
 
-// Mock data - In real app, this would be in your database
-const mockUsers = [
-  { id: '1', username: 'admin', password: 'admin123', role: 'admin' as const, createdAt: new Date() },
-  { id: '2', username: 'support1', password: 'support123', role: 'user' as const, createdAt: new Date() }
-];
+interface AuthContextValue {
+  // Current logged-in user (or null if not logged in)
+  user: User | null;
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // HTTP headers needed for authenticated requests (cases, etc.)
+  getAuthHeaders: () => { 'x-user-id': string; 'x-user-role': string };
+
+  // Log in (POST /api/auth/login)
+  login: (username: string, password: string) => Promise<boolean>;
+
+  // Log out locally (and clear state)
+  logout: () => void;
+
+  // List of all users (admin only)
+  users: User[];
+  fetchUsers: () => Promise<void>;
+
+  // Admin-only CRUD
+  createUser: (
+    username: string,
+    password: string,
+    role: 'admin' | 'user'
+  ) => Promise<boolean>;
+  updateUser: (
+    id: number,
+    data: { username?: string; password?: string; role?: 'admin' | 'user' }
+  ) => Promise<boolean>;
+  deleteUser: (id: number) => Promise<boolean>;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+//
+// 2) PROVIDER
+//
+export function AuthProvider({ children }: { children: ReactNode }) {
+  // (a) Store logged-in user
   const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
+  // (b) Store list of all users (admin panel)
+  const [users, setUsers] = useState<User[]>([]);
+
+  // Utility: parse RawUserFromServer → User
+  function parseUser(raw: RawUserFromServer): User {
+    return {
+      id: raw.id,
+      username: raw.username,
+      role: raw.role,
+      createdAt: raw.createdAt ? new Date(raw.createdAt) : undefined,
+    };
+  }
+
+  // Base API URL (Vite proxy or production)
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+  //
+  // Return headers for authenticated requests (cases, etc.)
+  //
+  function getAuthHeaders(): { 'x-user-id': string; 'x-user-role': string } {
+    if (!user) {
+      return { 'x-user-id': '', 'x-user-role': '' };
+    }
+    return {
+      'x-user-id': String(user.id),
+      'x-user-role': user.role,
+    };
+  }
+
+  //
+  //  login(): POST /api/auth/login
+  //
+  async function login(username: string, password: string): Promise<boolean> {
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!resp.ok) {
+        return false;
+      }
+
+      // Expecting { message: "...", user: { id, username, role, createdAt? } }
+      const body = await resp.json();
+      if (!body.user) {
+        console.error('Login response did not include user:', body);
+        return false;
+      }
+
+      // Set the logged-in user in state
+      const parsed: User = parseUser(body.user);
+      setUser(parsed);
+
+      // Persist to localStorage for rehydration
+      localStorage.setItem('loggedInUser', JSON.stringify(body.user));
+
+      // If admin, fetch the full users list
+      if (parsed.role === 'admin') {
+        await fetchUsersInternal();
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Login error:', err);
+      return false;
+    }
+  }
+
+  //
+  //  logout(): clear user and users list (and remove from localStorage)
+  //
+  function logout() {
+    setUser(null);
+    setUsers([]);
+    localStorage.removeItem('loggedInUser');
+  }
+
+  //
+  //  fetchUsers() → GET /api/users
+  //  (frontend-only guard: admin required)
+  //
+  async function fetchUsers(): Promise<void> {
+    if (!user || user.role !== 'admin') {
+      console.warn('fetchUsers() called but not admin');
+      setUsers([]);
+      return;
+    }
+    await fetchUsersInternal();
+  }
+
+  //
+  //  createUser() → POST /api/users
+  //  (frontend-only guard: admin required)
+  //
+  async function createUser(
+    username: string,
+    password: string,
+    role: 'admin' | 'user'
+  ): Promise<boolean> {
+    if (!user || user.role !== 'admin') {
+      console.warn('createUser() called but not admin');
+      return false;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ username, password, role }),
+      });
+
+      if (resp.status === 201) {
+        // Refresh the list after creation
+        await fetchUsersInternal();
+        return true;
+      } else {
+        console.error('createUser failed, status=', resp.status, await resp.text());
+        return false;
+      }
+    } catch (err) {
+      console.error('createUser error:', err);
+      return false;
+    }
+  }
+
+  //
+  //  updateUser() → PUT /api/users/:id
+  //  (frontend-only guard: admin required)
+  //
+  async function updateUser(
+    id: number,
+    data: { username?: string; password?: string; role?: 'admin' | 'user' }
+  ): Promise<boolean> {
+    if (!user || user.role !== 'admin') {
+      console.warn('updateUser() called but not admin');
+      return false;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (resp.ok) {
+        // Refresh after update
+        await fetchUsersInternal();
+        return true;
+      } else {
+        console.error('updateUser failed, status=', resp.status, await resp.text());
+        return false;
+      }
+    } catch (err) {
+      console.error('updateUser error:', err);
+      return false;
+    }
+  }
+
+  //
+  //  deleteUser() → DELETE /api/users/:id
+  //  (frontend-only guard: admin required)
+  //
+  async function deleteUser(id: number): Promise<boolean> {
+    if (!user || user.role !== 'admin') {
+      console.warn('deleteUser() called but not admin');
+      return false;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/users/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+
+      if (resp.status === 204) {
+        // Refresh after deletion
+        await fetchUsersInternal();
+        return true;
+      } else {
+        console.error('deleteUser failed, status=', resp.status, await resp.text());
+        return false;
+      }
+    } catch (err) {
+      console.error('deleteUser error:', err);
+      return false;
+    }
+  }
+
+  //
+  //  Internal helper: fetch /api/users
+  //
+  async function fetchUsersInternal(): Promise<void> {
+    try {
+      const resp = await fetch(`${API_BASE}/api/users`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      });
+
+      if (!resp.ok) {
+        console.error('Failed to fetch users:', resp.statusText);
+        setUsers([]);
+        return;
+      }
+
+      const data: RawUserFromServer[] = await resp.json();
+      setUsers(data.map(parseUser));
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setUsers([]);
+    }
+  }
+
+  //
+  //  Effect: On mount, rehydrate a “logged-in user” from localStorage
+  //
   useEffect(() => {
-    // Check if user is logged in on app start
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      // Convert createdAt string back to Date object
-      parsedUser.createdAt = new Date(parsedUser.createdAt);
-      setUser(parsedUser);
+    const saved = localStorage.getItem('loggedInUser');
+    if (saved) {
+      try {
+        const raw: RawUserFromServer = JSON.parse(saved);
+        setUser({
+          id: raw.id,
+          username: raw.username,
+          role: raw.role,
+          createdAt: raw.createdAt ? new Date(raw.createdAt) : undefined,
+        });
+      } catch {
+        localStorage.removeItem('loggedInUser');
+      }
     }
-    
-    // Load users (without passwords for security)
-    const savedUsers = localStorage.getItem('users');
-    if (savedUsers) {
-      const parsedUsers = JSON.parse(savedUsers);
-      // Convert createdAt strings back to Date objects
-      const usersWithDates = parsedUsers.map((user: any) => ({
-        ...user,
-        createdAt: new Date(user.createdAt)
-      }));
-      setUsers(usersWithDates);
-    } else {
-      const usersWithoutPasswords = mockUsers.map(({ password, ...user }) => user);
-      setUsers(usersWithoutPasswords);
-      localStorage.setItem('users', JSON.stringify(usersWithoutPasswords));
-      localStorage.setItem('userCredentials', JSON.stringify(mockUsers));
-    }
-    
-    setIsLoading(false);
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
-    const credentials = JSON.parse(localStorage.getItem('userCredentials') || '[]');
-    const foundUser = credentials.find((u: any) => u.username === username && u.password === password);
-    
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      // Ensure createdAt is a Date object
-      userWithoutPassword.createdAt = new Date(userWithoutPassword.createdAt);
-      setUser(userWithoutPassword);
-      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-      return true;
-    }
-    return false;
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('currentUser');
-  };
-
-  const changePassword = async (oldPassword: string, newPassword: string): Promise<boolean> => {
-    if (!user) return false;
-    
-    const credentials = JSON.parse(localStorage.getItem('userCredentials') || '[]');
-    const userIndex = credentials.findIndex((u: any) => u.id === user.id);
-    
-    if (userIndex !== -1 && credentials[userIndex].password === oldPassword) {
-      credentials[userIndex].password = newPassword;
-      localStorage.setItem('userCredentials', JSON.stringify(credentials));
-      return true;
-    }
-    return false;
-  };
-
-  const createUser = async (username: string, password: string, role: "admin" | "user"): Promise<boolean> => {
-    if (user?.role !== 'admin') return false;
-    
-    const credentials = JSON.parse(localStorage.getItem('userCredentials') || '[]');
-    const existingUser = credentials.find((u: any) => u.username === username);
-    
-    if (existingUser) return false;
-    
-    const newUser = {
-      id: Date.now().toString(),
-      username,
-      password,
-      role,
-      createdAt: new Date()
-    };
-    
-    credentials.push(newUser);
-    localStorage.setItem('userCredentials', JSON.stringify(credentials));
-    
-    const { password: _, ...userWithoutPassword } = newUser;
-    const updatedUsers = [...users, userWithoutPassword];
-    setUsers(updatedUsers);
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-    
-    return true;
-  };
-
   return (
-    <AuthContext.Provider value={{
-      user,
-      login,
-      logout,
-      changePassword,
-      createUser,
-      users,
-      isLoading
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        getAuthHeaders,
+        login,
+        logout,
+        users,
+        fetchUsers,
+        createUser,
+        updateUser,
+        deleteUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+//
+// 3) Custom hook for easier consumption
+//
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  return ctx;
 }
+
